@@ -233,9 +233,6 @@ contract('Test claimToken function of IcoRocketFuel contract', async (accounts) 
     assert.equal(tokenBalance, goal * rate, 'Token balance is incorrect.');
     // Finalize the crowdsale.
     await icoRocketFuel.finalize(crowdsaleToken.address, {from: crowdsaleOwner});
-
-    // Log previous balances before the third buyer claimed refund.
-    let previousBalance = await web3.eth.getBalance(tokenBuyer);
     
     // Start to claim tokens for the first buyer.
     let receipt = await icoRocketFuel.claimToken(crowdsaleToken.address, {from: tokenBuyer});
@@ -248,12 +245,6 @@ contract('Test claimToken function of IcoRocketFuel contract', async (accounts) 
     // Verify deposits.
     let deposit = await icoRocketFuel.deposits(tokenBuyer, crowdsaleToken.address);
     assert.equal(deposit.toNumber(), 0, 'Deposited Wei amount is incorrect.');
-
-    // Verify balance.
-    let balanceOfBuyer = await web3.eth.getBalance(tokenBuyer);
-    assert.equal(balanceOfBuyer.toNumber(), previousBalance.toNumber() 
-      + goal - receipt.receipt.gasUsed * tx.gasPrice, 
-      'Balance amount is incorrect.');
   });
 
   it('should not claim token (zero token address)', async function () {
