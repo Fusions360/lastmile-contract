@@ -83,6 +83,63 @@ contract('Test finalize function of IcoRocketFuel contract', async (accounts) =>
      'Balance of IcoRocketFuel contract is incorrect.');
   });
 
+  it('should finalize and refund surplus tokens', async function () {
+    let spentWei = goal;
+    let surplus = 1000;
+    // Buy token
+    await icoRocketFuel.buyToken(
+      crowdsaleToken.address, {value: spentWei, from: tokenBuyer});
+    // Transfer sold number of tokens for IcoRocketFuel contract.
+    await crowdsaleToken.transfer(icoRocketFuel.address, spentWei * rate + surplus, 
+      {from: crowdsaleOwner});
+    // Make sure the sold number of tokens was transferred.
+    let tokenBalance = await crowdsaleToken.balanceOf(icoRocketFuel.address);
+    assert.equal(tokenBalance, spentWei * rate + surplus, 'Token balance is incorrect.');
+    
+    // Log previous balance of commission wallet.
+    // Later, balance will increase with commission income.
+    let previousCommission = await web3.eth.getBalance(commissionWallet);
+    // After finalization, balance of IcoRocketFuel will decrease accordingly.
+    let previousBalance = await web3.eth.getBalance(icoRocketFuel.address);
+    // After finalization, token balance of refund wallet will be increased.
+    let previousTokenBalanceOfRefundWallet = await crowdsaleToken.balanceOf(refundWallet);
+
+    // Finalize the crowdsale. This is the function to be tested.
+    await icoRocketFuel.finalize(crowdsaleToken.address, {from: crowdsaleOwner});
+    
+    // Get crowdsale states, and verify the states.
+    let crowdsale = await icoRocketFuel.crowdsales(crowdsaleToken.address);
+    let receivedCommission = spentWei * commission / 100;
+    // Only Wei raised and crowdsale state changed to Closed.
+    assert.equal(crowdsale[4], spentWei - receivedCommission, 
+      'Crowdsale Wei raised is incorrect.');
+    assert.equal(crowdsale[10], 2, 'Crowdsale state is incorrect.');
+    // Rest crowdsale states are not changed.
+    assert.equal(crowdsale[0], crowdsaleOwner, 'Crowdsale owner is incorrect.');
+    assert.equal(crowdsale[1], refundWallet, 'Crowdsale refund wallet is incorrect.');
+    assert.equal(crowdsale[2], cap, 'Crowdsale cap is incorrect.');
+    assert.equal(crowdsale[3], goal, 'Crowdsale goal is incorrect.');
+    assert.equal(crowdsale[5], rate, 'Crowdsale token exchange rate is incorrect.');
+    assert.equal(crowdsale[6], minInvest, 'Crowdsale minimum investment is incorrect.');
+    assert.equal(crowdsale[7], closingTime, 'Crowdsale closing time is incorrect.');
+    assert.equal(crowdsale[8], earlyClosure, 'Crowdsale early closure is incorrect.');
+    assert.equal(crowdsale[9], commission, 'Crowdsale commission is incorrect.');
+
+    // Verify balance.
+    let currentCommission = await web3.eth.getBalance(commissionWallet);
+    let currentBalance = await web3.eth.getBalance(icoRocketFuel.address);
+    assert.equal(currentCommission.toNumber(), previousCommission.toNumber() + receivedCommission,
+     'Balance of commission wallet is incorrect.');
+    assert.equal(currentBalance.toNumber(), previousBalance.toNumber() - receivedCommission,
+     'Balance of IcoRocketFuel contract is incorrect.');
+
+    // Verify refund surplus tokens.
+    let tokenBalanceOfRefundWallet = await crowdsaleToken.balanceOf(refundWallet);
+    assert.equal(tokenBalanceOfRefundWallet.toNumber(), 
+      previousTokenBalanceOfRefundWallet.toNumber() + surplus,
+      'Refunded surplus tokens is incorrect.');
+  });
+
   it('should finalize (insufficient raised, crowdsale state = Refunding)', async function () {
     /*
      * This will test the condition:

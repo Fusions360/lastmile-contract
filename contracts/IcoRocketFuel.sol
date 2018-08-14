@@ -1,4 +1,4 @@
-pragma solidity ^0.4.23;
+pragma solidity ^0.4.24;
 
 import "./ERC20.sol";
 import "./Ownable.sol";
@@ -92,6 +92,12 @@ contract IcoRocketFuel is Ownable {
         address indexed _token   // Token address
     );
 
+    event SurplusTokensRefunded(
+        address _token,       // ERC20 token for crowdsale
+        address _beneficiary, // Surplus tokens will refund to this wallet
+        uint256 _surplus      // Surplus token units
+    );
+
     event CommissionPaid(
         address indexed _payer,       // Commission payer        
         address indexed _token,       // Paid from this crowdsale
@@ -144,9 +150,9 @@ contract IcoRocketFuel is Ownable {
     function setCommissionWallet(
         address _newWallet
     )
+        external
         onlyOwner
         nonZeroAddress(_newWallet)
-        external
     {
         emit CommissionWalletUpdated(commissionWallet, _newWallet);
         commissionWallet = _newWallet;
@@ -176,9 +182,9 @@ contract IcoRocketFuel is Ownable {
         bool _earlyClosure,
         uint8 _commission
     )
+        external
         nonZeroAddress(_token)
         nonZeroAddress(_refundWallet)
-        external
     {
         require(
             crowdsales[_token].owner == address(0),
@@ -245,9 +251,9 @@ contract IcoRocketFuel is Ownable {
     function buyToken(
         address _token
     )
+        external
         inState(_token, States.Active)
         nonZeroAddress(_token)
-        external
         payable
     {
         require(
@@ -288,8 +294,8 @@ contract IcoRocketFuel is Ownable {
     function _goalReached(
         ERC20 _token
     )
-        nonZeroAddress(_token)
         private
+        nonZeroAddress(_token)
         view
         returns(bool) 
     {
@@ -300,6 +306,31 @@ contract IcoRocketFuel is Ownable {
     }
 
     /**
+     * Refund surplus tokens to refund wallet.
+     *
+     * @param _token Deployed ERC20 token
+     * @param _beneficiary Surplus tokens will refund to this wallet
+     */
+    function _refundSurplusTokens(
+        ERC20 _token,
+        address _beneficiary
+    )
+        private
+        nonZeroAddress(_token)
+        inState(_token, States.Closed)
+    {
+        uint256 _balance = _token.balanceOf(address(this));
+        uint256 _surplus = _balance.sub(
+            crowdsales[_token].raised.mul(crowdsales[_token].rate));
+        emit SurplusTokensRefunded(_token, _beneficiary, _surplus);
+
+        if (_surplus > 0) {
+            // Refund surplus tokens to refund wallet.
+            _token.transfer(_beneficiary, _surplus);
+        }
+    }
+
+    /**
      * Pay commission by raised Wei amount of crowdsale.
      *
      * @param _token Deployed ERC20 token address
@@ -307,10 +338,10 @@ contract IcoRocketFuel is Ownable {
     function _payCommission(
         address _token
     )
+        private
         nonZeroAddress(_token)
         inState(_token, States.Closed)
         onlyCrowdsaleOwner(_token)
-        private
     {
         // Calculate commission, update rest raised Wei, and pay commission.
         uint256 _commission = crowdsales[_token].raised
@@ -330,10 +361,10 @@ contract IcoRocketFuel is Ownable {
     function _refundCrowdsaleTokens(
         ERC20 _token,
         address _beneficiary
-    ) 
+    )
+        private
         nonZeroAddress(_token)
         inState(_token, States.Refunding)
-        private
     {
         // Set raised Wei to 0 to prevent unknown issues 
         // which might take Wei away. 
@@ -358,9 +389,9 @@ contract IcoRocketFuel is Ownable {
     function _enableRefunds(
         address _token
     )
+        private
         nonZeroAddress(_token)
-        inState(_token, States.Active)
-        private        
+        inState(_token, States.Active)      
     {
         // Set state to Refunding while preventing reentry.
         crowdsales[_token].state = States.Refunding;
@@ -378,10 +409,10 @@ contract IcoRocketFuel is Ownable {
     function finalize(
         address _token
     )
+        external
         nonZeroAddress(_token)
         inState(_token, States.Active)        
         onlyCrowdsaleOwner(_token)
-        external
     {
         require(                    
             crowdsales[_token].earlyClosure || (
@@ -394,6 +425,10 @@ contract IcoRocketFuel is Ownable {
             // Set state to Closed whiling preventing reentry.
             crowdsales[_token].state = States.Closed;
             emit CrowdsaleClosed(msg.sender, _token);
+            _refundSurplusTokens(
+                ERC20(_token), 
+                crowdsales[_token].refundWallet
+            );
             _payCommission(_token);                        
         } else {
             _enableRefunds(_token);
@@ -413,11 +448,11 @@ contract IcoRocketFuel is Ownable {
      */
     function pauseCrowdsale(
         address _token
-    )        
+    )  
+        external      
         nonZeroAddress(_token)
         onlyOwner
         inState(_token, States.Active)
-        external
     {
         emit CrowdsalePaused(msg.sender, _token);
         _enableRefunds(_token);
@@ -433,11 +468,11 @@ contract IcoRocketFuel is Ownable {
         address _token,
         address _beneficiary
     )
+        external
         nonZeroAddress(_token)
         nonZeroAddress(_beneficiary)
         inState(_token, States.Closed)
-        onlyCrowdsaleOwner(_token)
-        external
+        onlyCrowdsaleOwner(_token)        
     {
         require(
             crowdsales[_token].raised > 0,
@@ -458,9 +493,9 @@ contract IcoRocketFuel is Ownable {
     function claimToken(
         address _token
     )
-        nonZeroAddress(_token)
-        inState(_token, States.Closed)        
         external 
+        nonZeroAddress(_token)
+        inState(_token, States.Closed)
     {
         require(
             deposits[msg.sender][_token] > 0,
@@ -484,9 +519,9 @@ contract IcoRocketFuel is Ownable {
     function claimRefund(
         address _token
     )
+        public
         nonZeroAddress(_token)
-        inState(_token, States.Refunding)        
-        public 
+        inState(_token, States.Refunding)
     {
         require(
             deposits[msg.sender][_token] > 0,
