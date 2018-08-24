@@ -1,11 +1,13 @@
 pragma solidity ^0.4.24;
 
+import "./KYC.sol";
+import "./CrowdsaleController.sol";
 import "./ERC20.sol";
 import "./Ownable.sol";
 import "./SafeMath.sol";
 
 /**
- * @title ICO Rocket Fuel contract for LastMile service.
+ * @title ICO Rocket Fuel contract for FirstMile/LastMile service.
  */
 contract IcoRocketFuel is Ownable {
 
@@ -29,7 +31,18 @@ contract IcoRocketFuel is Ownable {
     }
 
     // When crowdsale is closed, commissions will transfer to this wallet.
-    address public commissionWallet;    
+    address public commissionWallet;
+
+    // When KYC is required, check KYC result with this contract.
+    // The value is initiated by constructor.
+    // The value is not allowed to change after contract deployment.
+    KYC public kyc;
+
+    // Crowdsale controller provides external control capabilities, 
+    // e.g., approval status, invest restrictions, etc.
+    // The value is initiated by constructor.
+    // The value is not allowed to change after contract deployment.
+    CrowdsaleController public ctrl;
 
     // Use crowdsales[token] to get corresponding crowdsale.
     // The token is an ERC20 token address.
@@ -76,8 +89,8 @@ contract IcoRocketFuel is Ownable {
         uint256 _cap,           // Hard cap
         uint256 _goal,          // Soft cap
         uint256 _rate,          // Sell rate. Set to 10 means 1 Wei = 10 token units
-        uint256 closingTime,    // Crowdsale closing time
-        bool earlyClosure,      // Whether allow early closure
+        uint256 _closingTime,   // Crowdsale closing time
+        bool _earlyClosure,     // Whether allow early closure
         uint8 _commission       // Commission percentage. Set to 10 means 10%
     );
 
@@ -139,8 +152,27 @@ contract IcoRocketFuel is Ownable {
         uint256 _value                // Refund Wei amount 
     );
 
-    // Note no default constructor is required, but 
-    // remember to set commission wallet before operating.
+    /**
+     * Contract constructor.
+     *
+     * @param _commissionWallet Commission wallet which can change later
+     * @param _kycImpl Address of deployed KYC contract implementation
+     * @param _ctrlImpl Address of deployed crowdsale controller implementation
+     */
+    constructor(
+        address _commissionWallet,
+        address _kycImpl,
+        address _ctrlImpl
+    )
+        public
+        nonZeroAddress(_commissionWallet)
+        nonZeroAddress(_kycImpl)
+        nonZeroAddress(_ctrlImpl)
+    {
+        commissionWallet = _commissionWallet;
+        kyc = KYC(_kycImpl);
+        ctrl = CrowdsaleController(_ctrlImpl);
+    }
 
     /**
      * Set crowdsale commission wallet.
@@ -186,6 +218,11 @@ contract IcoRocketFuel is Ownable {
         nonZeroAddress(_token)
         nonZeroAddress(_refundWallet)
     {
+        require(
+            ctrl.approvedOf(_token),
+            "Failed to create crowdsale due to it is not approved yet."
+        );
+
         require(
             crowdsales[_token].owner == address(0),
             "Failed to create crowdsale due to the crowdsale is existed."
@@ -272,6 +309,28 @@ contract IcoRocketFuel is Ownable {
             // solium-disable-next-line security/no-block-members
             block.timestamp < crowdsales[_token].closingTime,
             "Failed to buy token due to crowdsale is closed."
+        );
+
+        uint8 _kycLevel = ctrl.kycLevelOf(_token);
+
+        // KYC level = 0 means no KYC can invest.
+        // KYC level > 0 means certain level of KYC is required.
+        if (_kycLevel > 0) {
+            require(
+                // solium-disable-next-line security/no-block-members
+                block.timestamp < kyc.expireOf(msg.sender),
+                "Failed to buy token due to KYC was expired."
+            );
+        }
+
+        require(
+            _kycLevel <= kyc.kycLevelOf(msg.sender),
+            "Failed to buy token due to require higher KYC level."
+        );
+
+        require(
+            ctrl.countryBlacklistOf(_token) & kyc.nationalitiesOf(msg.sender) == 0,
+            "Failed to buy token due to country investment restriction."
         );
 
         deposits[msg.sender][_token] = (

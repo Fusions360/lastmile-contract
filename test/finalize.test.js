@@ -1,9 +1,14 @@
 const IcoRocketFuel = artifacts.require('IcoRocketFuel');
+const FusionsKYC = artifacts.require('FusionsKYC');
+const FusionsCrowdsaleController = artifacts.require('FusionsCrowdsaleController');
 const MintableToken = artifacts.require('MintableToken');
+const BigNumber = web3.BigNumber;
 
 contract('Test finalize function of IcoRocketFuel contract', async (accounts) => {
 
   let icoRocketFuel;
+  let fusionsKYC;
+  let fusionsCrowdsaleController;
   let crowdsaleToken;
 
   let owner = accounts[0];
@@ -26,10 +31,13 @@ contract('Test finalize function of IcoRocketFuel contract', async (accounts) =>
   });
 
   beforeEach(async () => {
-    icoRocketFuel = await IcoRocketFuel.new({from: owner});
-    await icoRocketFuel.setCommissionWallet(commissionWallet, {from: owner});
+    fusionsKYC = await FusionsKYC.new({from: owner});
+    fusionsCrowdsaleController = await FusionsCrowdsaleController.new({from: owner});
+    icoRocketFuel = await IcoRocketFuel.new(commissionWallet, 
+      fusionsKYC.address, fusionsCrowdsaleController.address, {from: owner});
     crowdsaleToken = await MintableToken.new({from: crowdsaleOwner});
     await crowdsaleToken.mint(crowdsaleOwner, mintTokens, {from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(crowdsaleToken.address, 0, 0);
     await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
       cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
       {from: crowdsaleOwner});
@@ -440,6 +448,7 @@ contract('Test finalize function of IcoRocketFuel contract', async (accounts) =>
     // Create a new crowdsale which does not allow early closure.
     let tokenNotAllowEarlyClosure = await MintableToken.new({from: crowdsaleOwner});
     await tokenNotAllowEarlyClosure.mint(crowdsaleOwner, mintTokens, {from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(tokenNotAllowEarlyClosure.address, 0, 0);
     await icoRocketFuel.createCrowdsale(tokenNotAllowEarlyClosure.address, refundWallet, 
       cap, goal, rate, minInvest, closingTime, false, commission, {from: crowdsaleOwner});
 
@@ -513,6 +522,7 @@ contract('Test finalize function of IcoRocketFuel contract', async (accounts) =>
     let newClosingTime = Math.floor((new Date).getTime()/1000) + 2;
     let tokenNotAllowEarlyClosure = await MintableToken.new({from: crowdsaleOwner});
     await tokenNotAllowEarlyClosure.mint(crowdsaleOwner, mintTokens, {from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(tokenNotAllowEarlyClosure.address, 0, 0);
     await icoRocketFuel.createCrowdsale(tokenNotAllowEarlyClosure.address, refundWallet, 
       cap, goal, rate, minInvest, newClosingTime, false, commission, {from: crowdsaleOwner});
 

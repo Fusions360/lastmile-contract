@@ -1,9 +1,14 @@
 const IcoRocketFuel = artifacts.require('IcoRocketFuel');
+const FusionsKYC = artifacts.require('FusionsKYC');
+const FusionsCrowdsaleController = artifacts.require('FusionsCrowdsaleController');
 const MintableToken = artifacts.require('MintableToken');
+const BigNumber = web3.BigNumber;
 
 contract('Test claimRaisedWei function of IcoRocketFuel contract', async (accounts) => {
 
   let icoRocketFuel;
+  let fusionsKYC;
+  let fusionsCrowdsaleController;
   let crowdsaleToken;
 
   let owner = accounts[0];
@@ -30,10 +35,13 @@ contract('Test claimRaisedWei function of IcoRocketFuel contract', async (accoun
   });
 
   beforeEach(async () => {
-    icoRocketFuel = await IcoRocketFuel.new({from: owner});
-    await icoRocketFuel.setCommissionWallet(commissionWallet, {from: owner});
+    fusionsKYC = await FusionsKYC.new({from: owner});
+    fusionsCrowdsaleController = await FusionsCrowdsaleController.new({from: owner});
+    icoRocketFuel = await IcoRocketFuel.new(commissionWallet, 
+      fusionsKYC.address, fusionsCrowdsaleController.address, {from: owner});
     crowdsaleToken = await MintableToken.new({from: crowdsaleOwner});
     await crowdsaleToken.mint(crowdsaleOwner, mintTokens, {from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(crowdsaleToken.address, 0, 0);
     await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
       cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
       {from: crowdsaleOwner});
@@ -215,10 +223,11 @@ contract('Test claimRaisedWei function of IcoRocketFuel contract', async (accoun
   });
 
   it('should not claim raised Wei (crowdsale state is Active)', async function () {
-    icoRocketFuel = await IcoRocketFuel.new({from: owner});
-    await icoRocketFuel.setCommissionWallet(commissionWallet, {from: owner});
+    icoRocketFuel = await IcoRocketFuel.new(commissionWallet, 
+      fusionsKYC.address, fusionsCrowdsaleController.address, {from: owner});
     crowdsaleToken = await MintableToken.new({from: crowdsaleOwner});
     await crowdsaleToken.mint(crowdsaleOwner, mintTokens, {from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(crowdsaleToken.address, 0, 0);
     await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
       cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
       {from: crowdsaleOwner});
@@ -277,10 +286,11 @@ contract('Test claimRaisedWei function of IcoRocketFuel contract', async (accoun
   });
 
   it('should not claim raised Wei (crowdsale state is Refunding)', async function () {
-    icoRocketFuel = await IcoRocketFuel.new({from: owner});
-    await icoRocketFuel.setCommissionWallet(commissionWallet, {from: owner});
+    icoRocketFuel = await IcoRocketFuel.new(commissionWallet, 
+      fusionsKYC.address, fusionsCrowdsaleController.address, {from: owner});
     crowdsaleToken = await MintableToken.new({from: crowdsaleOwner});
     await crowdsaleToken.mint(crowdsaleOwner, mintTokens, {from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(crowdsaleToken.address, 0, 0);
     await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
       cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
       {from: crowdsaleOwner});
@@ -386,10 +396,11 @@ contract('Test claimRaisedWei function of IcoRocketFuel contract', async (accoun
   });
 
   it('should not claim raised Wei (no raised Wei)', async function () {
-    icoRocketFuel = await IcoRocketFuel.new({from: owner});
-    await icoRocketFuel.setCommissionWallet(commissionWallet, {from: owner});
+    icoRocketFuel = await IcoRocketFuel.new(commissionWallet, 
+      fusionsKYC.address, fusionsCrowdsaleController.address, {from: owner});
     crowdsaleToken = await MintableToken.new({from: crowdsaleOwner});
     await crowdsaleToken.mint(crowdsaleOwner, mintTokens, {from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(crowdsaleToken.address, 0, 0);
     // Set goal to 0.
     await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
       cap, 0, rate, minInvest, closingTime, earlyClosure, commission, 

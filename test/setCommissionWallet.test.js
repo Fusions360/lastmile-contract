@@ -1,18 +1,25 @@
 const IcoRocketFuel = artifacts.require('IcoRocketFuel');
+const FusionsKYC = artifacts.require('FusionsKYC');
+const FusionsCrowdsaleController = artifacts.require('FusionsCrowdsaleController');
+const BigNumber = web3.BigNumber;
 
 contract('Test setCommissionWallet function of IcoRocketFuel contract', async (accounts) => {
-  const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
-
   let icoRocketFuel;
+  let fusionsKYC;
+  let fusionsCrowdsaleController;
   let owner = accounts[0];
   let commissionWallet = accounts[1];
   let notOwner = accounts[2];
+  let defaultCommissionWallet = accounts[3];
 
   before(async function () {
   });
 
   beforeEach(async () => {
-    icoRocketFuel = await IcoRocketFuel.new({from: owner});
+    fusionsKYC = await FusionsKYC.new({from: owner});
+    fusionsCrowdsaleController = await FusionsCrowdsaleController.new({from: owner});
+    icoRocketFuel = await IcoRocketFuel.new(defaultCommissionWallet, 
+      fusionsKYC.address, fusionsCrowdsaleController.address, {from: owner});
   });
 
   it('should set commission wallet', async function () {
@@ -31,7 +38,7 @@ contract('Test setCommissionWallet function of IcoRocketFuel contract', async (a
     }
     assert.isTrue(thrown);
     let actualCommissionWallet = await icoRocketFuel.commissionWallet();
-    assert.equal(actualCommissionWallet, ZERO_ADDR,
+    assert.equal(actualCommissionWallet, defaultCommissionWallet,
       'Address of default commission wallet is not 0x0.');
   });
 
@@ -44,7 +51,7 @@ contract('Test setCommissionWallet function of IcoRocketFuel contract', async (a
     }
     assert.isTrue(thrown);
     let actualCommissionWallet = await icoRocketFuel.commissionWallet();
-    assert.equal(actualCommissionWallet, ZERO_ADDR,
+    assert.equal(actualCommissionWallet, defaultCommissionWallet,
       'Address of default commission wallet is not 0x0.');
   });
 })

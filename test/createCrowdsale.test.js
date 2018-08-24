@@ -1,9 +1,14 @@
 const IcoRocketFuel = artifacts.require('IcoRocketFuel');
+const FusionsKYC = artifacts.require('FusionsKYC');
+const FusionsCrowdsaleController = artifacts.require('FusionsCrowdsaleController');
 const MintableToken = artifacts.require('MintableToken');
+const BigNumber = web3.BigNumber;
 
 contract('Test createCrowdsale function of IcoRocketFuel contract', async (accounts) => {
 
   let icoRocketFuel;
+  let fusionsKYC;
+  let fusionsCrowdsaleController;
   let crowdsaleToken;
 
   const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
@@ -24,14 +29,17 @@ contract('Test createCrowdsale function of IcoRocketFuel contract', async (accou
   });
 
   beforeEach(async () => {
-    icoRocketFuel = await IcoRocketFuel.new({from: owner});
-    await icoRocketFuel.setCommissionWallet(commissionWallet, {from: owner});
+    fusionsKYC = await FusionsKYC.new({from: owner});
+    fusionsCrowdsaleController = await FusionsCrowdsaleController.new({from: owner});
+    icoRocketFuel = await IcoRocketFuel.new(commissionWallet, 
+      fusionsKYC.address, fusionsCrowdsaleController.address, {from: owner});
     crowdsaleToken = await MintableToken.new({from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(crowdsaleToken.address, 0, 0);
   });
 
   it('should create crowdsale', async function () {
     await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
-      cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
+      cap, goal, rate, minInvest, closingTime, earlyClosure, commission,
       {from: crowdsaleOwner});
     let crowdsale = await icoRocketFuel.crowdsales(crowdsaleToken.address);
     assert.equal(crowdsale[0], crowdsaleOwner, 'Crowdsale owner is incorrect.');
@@ -65,8 +73,8 @@ contract('Test createCrowdsale function of IcoRocketFuel contract', async (accou
     let thrown = false;
     try {
       await icoRocketFuel.createCrowdsale(0, refundWallet, 
-        cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
-        {from: crowdsaleOwner});
+        cap, goal, rate, minInvest, closingTime, earlyClosure,
+        commission, {from: crowdsaleOwner});
     } catch(e) {
       thrown = true;
     }
@@ -79,8 +87,8 @@ contract('Test createCrowdsale function of IcoRocketFuel contract', async (accou
     let thrown = false;
     try {
       await icoRocketFuel.createCrowdsale(crowdsaleToken.address, 0, 
-        cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
-        {from: crowdsaleOwner});
+        cap, goal, rate, minInvest, closingTime, earlyClosure,
+        commission, {from: crowdsaleOwner});
     } catch(e) {
       thrown = true;
     }
@@ -93,8 +101,8 @@ contract('Test createCrowdsale function of IcoRocketFuel contract', async (accou
     let thrown = false;
     try {
       await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
-        cap, goal + cap, rate, minInvest, closingTime, earlyClosure, commission, 
-        {from: crowdsaleOwner});
+        cap, goal + cap, rate, minInvest, closingTime, earlyClosure,
+        commission, {from: crowdsaleOwner});
     } catch(e) {
       thrown = true;
     }
@@ -139,8 +147,8 @@ contract('Test createCrowdsale function of IcoRocketFuel contract', async (accou
       // To verify this, try either set cap to 2**254 or
       // set rate to 1, the test case will fail.
       await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
-        Math.pow(2, 255), goal, 2, minInvest, closingTime, earlyClosure, commission, 
-        {from: crowdsaleOwner});
+        new BigNumber(2 ** 255), goal, 2, minInvest, closingTime, earlyClosure, 
+        commission, {from: crowdsaleOwner});
     } catch(e) {
       thrown = true;
     }
@@ -151,14 +159,14 @@ contract('Test createCrowdsale function of IcoRocketFuel contract', async (accou
 
   it('should not create crowdsale (duplicate token address)', async function () {
     await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
-      cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
-      {from: crowdsaleOwner});
+      cap, goal, rate, minInvest, closingTime, earlyClosure,
+      commission, {from: crowdsaleOwner});
     
     let thrown = false;
     try {
       await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
-        cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
-        {from: crowdsaleOwner});
+        cap, goal, rate, minInvest, closingTime, earlyClosure,
+        commission, {from: crowdsaleOwner});
     } catch(e) {
       thrown = true;
     }
@@ -176,5 +184,21 @@ contract('Test createCrowdsale function of IcoRocketFuel contract', async (accou
     assert.equal(crowdsale[8], earlyClosure, 'Crowdsale early closure is incorrect.');
     assert.equal(crowdsale[9], commission, 'Crowdsale commission is incorrect.');
     assert.equal(crowdsale[10], 0, 'Crowdsale state is incorrect.');
+  });
+
+  it('should not create crowdsale (not approved token)', async function () {
+    let notApprovedToken = await MintableToken.new({from: crowdsaleOwner});
+
+    let thrown = false;
+    try {
+      await icoRocketFuel.createCrowdsale(notApprovedToken.address,
+        refundWallet, cap, goal, rate, minInvest, closingTime, earlyClosure,
+        commission, {from: crowdsaleOwner});
+    } catch(e) {
+      thrown = true;
+    }
+    assert.isTrue(thrown);
+    let crowdsale = await icoRocketFuel.crowdsales(notApprovedToken.address);
+    assertDefaultCrowdsale(crowdsale);
   });
 })

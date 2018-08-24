@@ -1,9 +1,14 @@
 const IcoRocketFuel = artifacts.require('IcoRocketFuel');
+const FusionsKYC = artifacts.require('FusionsKYC');
+const FusionsCrowdsaleController = artifacts.require('FusionsCrowdsaleController');
 const MintableToken = artifacts.require('MintableToken');
+const BigNumber = web3.BigNumber;
 
 contract('Test buyToken function of IcoRocketFuel contract', async (accounts) => {
 
   let icoRocketFuel;
+  let fusionsKYC;
+  let fusionsCrowdsaleController;
   let crowdsaleToken;
 
   let owner = accounts[0];
@@ -30,9 +35,12 @@ contract('Test buyToken function of IcoRocketFuel contract', async (accounts) =>
   });
 
   beforeEach(async () => {
-    icoRocketFuel = await IcoRocketFuel.new({from: owner});
-    await icoRocketFuel.setCommissionWallet(commissionWallet, {from: owner});
+    fusionsKYC = await FusionsKYC.new({from: owner});
+    fusionsCrowdsaleController = await FusionsCrowdsaleController.new({from: owner});
+    icoRocketFuel = await IcoRocketFuel.new(commissionWallet, 
+      fusionsKYC.address, fusionsCrowdsaleController.address, {from: owner});
     crowdsaleToken = await MintableToken.new({from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(crowdsaleToken.address, 0, 0);
     await icoRocketFuel.createCrowdsale(crowdsaleToken.address, refundWallet, 
       cap, goal, rate, minInvest, closingTime, earlyClosure, commission, 
       {from: crowdsaleOwner});
@@ -117,28 +125,23 @@ contract('Test buyToken function of IcoRocketFuel contract', async (accounts) =>
     assert.equal(crowdsale[4], raisedWei, 'Crowdsale Wei raised is incorrect.');
   });
 
-  // it('should buy token (valueX = cap)', async function () {
-  //   // Log previous balance.
-  //   let previousBalanceOfBuyer = await web3.eth.getBalance(tokenBuyer);
-  //   // Buy token. Gas cost in Wei = receipt.receipt.gasUsed * tx.gasPrice.
-  //   let receipt = await icoRocketFuel.buyToken(
-  //     crowdsaleToken.address, {value: cap, from: tokenBuyer});
-  //   let tx = await web3.eth.getTransaction(receipt.tx);
-  //   // Verify deposit.
-  //   let deposit = await icoRocketFuel.deposits(tokenBuyer, crowdsaleToken.address);
-  //   assert.equal(deposit, cap, 'Deposited Wei amount is incorrect.');
-  //   // Verify crowdsale raised Wei amount.
-  //   let crowdsale = await icoRocketFuel.crowdsales(crowdsaleToken.address);
-  //   assert.equal(crowdsale[4], cap, 'Crowdsale Wei raised is incorrect.');
-  //   // Verfify balance after purchase.
-  //   let balanceOfContract = await web3.eth.getBalance(icoRocketFuel.address);
-  //   assert.equal(balanceOfContract, cap, 'Balance of contract is incorrect.');
-  //   // Verfify balance after purchase.
-  //   let balanceOfBuyer = await web3.eth.getBalance(tokenBuyer);
-  //   assert.equal(balanceOfBuyer.toNumber(), previousBalanceOfBuyer.toNumber() 
-  //     - cap - (receipt.receipt.gasUsed * tx.gasPrice), 
-  //     'Balance amount is incorrect.');
-  // });
+  it('should buy token (valueX = cap)', async function () {
+    // Log previous balance.
+    let previousBalanceOfBuyer = await web3.eth.getBalance(tokenBuyer);
+    // Buy token. Gas cost in Wei = receipt.receipt.gasUsed * tx.gasPrice.
+    let receipt = await icoRocketFuel.buyToken(
+      crowdsaleToken.address, {value: cap, from: tokenBuyer});
+    let tx = await web3.eth.getTransaction(receipt.tx);
+    // Verify deposit.
+    let deposit = await icoRocketFuel.deposits(tokenBuyer, crowdsaleToken.address);
+    assert.equal(deposit, cap, 'Deposited Wei amount is incorrect.');
+    // Verify crowdsale raised Wei amount.
+    let crowdsale = await icoRocketFuel.crowdsales(crowdsaleToken.address);
+    assert.equal(crowdsale[4], cap, 'Crowdsale Wei raised is incorrect.');
+    // Verfify balance after purchase.
+    let balanceOfContract = await web3.eth.getBalance(icoRocketFuel.address);
+    assert.equal(balanceOfContract, cap, 'Balance of contract is incorrect.');
+  });
 
   it('should not buy token (incorrect state)', async function () {
     // Finalize (no raised Wei) should cause the state change to Refunding.
@@ -204,6 +207,7 @@ contract('Test buyToken function of IcoRocketFuel contract', async (accounts) =>
   it('should not buy token (now >= closing time)', async function () {
     // Create a closed crowdsale.
     closedCrowdsale = await MintableToken.new({from: crowdsaleOwner});
+    await fusionsCrowdsaleController.approveCrowdsale(closedCrowdsale.address, 0, 0);
     closedTime = Math.floor((new Date).getTime()/1000) - 10000;
     await icoRocketFuel.createCrowdsale(closedCrowdsale.address, refundWallet, 
       cap, goal, rate, minInvest, closedTime, earlyClosure, commission, 
