@@ -12,4 +12,4 @@ truffle test
 
 ## Deply smart contract
 
-Current version of the flatten [Contract Source Code](https://etherscan.io/address/0xdbd6f7ba4cecb4c5ac5b9529d8e09b1aa1e8ca80#code) was deployed on Ethereum main network. To deploy your own copy for testing, you can directly copy the flatten version of source code to deploy, verify, run and test.
+Current version of the flatten [Contract Source Code](https://etherscan.io/address/0x7bf94bba5f0dcdef4c15e2eebef428db9eba4bfe#code) was deployed on Ethereum main network. To deploy your own copy for testing, you can directly copy the flatten version of source code to deploy, verify, run and test.
